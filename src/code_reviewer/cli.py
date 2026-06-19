@@ -8,6 +8,7 @@ from rich.console import Console
 
 from .ingestion.loader import from_path
 from .preprocessing import build_context
+from .agents.correctness import review_correctness
 
 console = Console()
 
@@ -37,17 +38,27 @@ def main(target: str | None, verify_gemini: bool) -> None:
 
     console.print(f"[green]✓[/green] Loaded {len(review_target.files)} file(s)")
     context = build_context(review_target)
+    console.print()
     for f in review_target.files:
-        lines = f.content.count("\n") + 1
-        console.print(f"  - {f.path} ({f.language}, {lines} lines)")
         fm = context.map_for(f.path)
-        if fm is not None:
+        if fm is None:
+            continue
+        console.print(f"[bold]Reviewing {f.path}...[/bold]")
+        report = review_correctness(f, fm, review_target.workdir)
+        console.print(f"[dim]{report.summary}[/dim]")
+        for finding in report.findings:
+            sev_color = {
+                "critical": "red", "high": "red",
+                "medium": "yellow", "low": "blue", "info": "dim",
+            }.get(finding.severity.value, "white")
             console.print(
-                f"    [dim]→ {len(fm.functions)} functions, "
-                f"{len(fm.classes)} classes, "
-                f"{len(fm.imports)} imports[/dim]"
+                f"  [{sev_color}]{finding.severity.value.upper()}[/{sev_color}] "
+                f"line {finding.location.line_start}: {finding.title}"
             )
-    console.print("[dim]Agents not wired up yet — Part B.[/dim]")
+            console.print(f"    [dim]{finding.description}[/dim]")
+            if finding.grounding:
+                console.print(f"    [dim italic]grounded by: {', '.join(finding.grounding)}[/dim italic]")
+
 
 async def _verify_gemini() -> None:
     """Smoke test: send a one-shot prompt through google-genai."""
