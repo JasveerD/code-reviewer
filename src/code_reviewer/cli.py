@@ -7,6 +7,7 @@ import click
 from rich.console import Console
 
 from .ingestion.loader import from_path
+from .preprocessing import build_context
 
 console = Console()
 
@@ -35,12 +36,18 @@ def main(target: str | None, verify_gemini: bool) -> None:
         sys.exit(1)
 
     console.print(f"[green]✓[/green] Loaded {len(review_target.files)} file(s)")
+    context = build_context(review_target)
     for f in review_target.files:
         lines = f.content.count("\n") + 1
         console.print(f"  - {f.path} ({f.language}, {lines} lines)")
-
-    console.print("[dim]Agents not wired up yet — Day 2.[/dim]")
-
+        fm = context.map_for(f.path)
+        if fm is not None:
+            console.print(
+                f"    [dim]→ {len(fm.functions)} functions, "
+                f"{len(fm.classes)} classes, "
+                f"{len(fm.imports)} imports[/dim]"
+            )
+    console.print("[dim]Agents not wired up yet — Part B.[/dim]")
 
 async def _verify_gemini() -> None:
     """Smoke test: send a one-shot prompt through google-genai."""
