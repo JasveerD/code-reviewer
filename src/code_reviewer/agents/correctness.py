@@ -12,7 +12,7 @@ from ..ingestion.types import ReviewFile
 from ..context import FileMap
 from ..schemas import AgentReport, Finding
 from ..tools.pyright_tool import run_pyright, PyrightDiagnostic
-
+from ._prompts import format_code_map, format_source
 
 _SYSTEM_INSTRUCTION = """You are a code review agent specialized in correctness and logic bugs.
 
@@ -49,24 +49,6 @@ def _format_pyright(diagnostics: list[PyrightDiagnostic]) -> str:
     return "\n".join(lines)
 
 
-def _format_code_map(fm: FileMap) -> str:
-    parts = []
-    if fm.functions:
-        parts.append("Functions:")
-        for f in fm.functions:
-            parts.append(f"  - {f.signature} (lines {f.line_start}-{f.line_end})")
-    if fm.classes:
-        parts.append("Classes:")
-        for c in fm.classes:
-            parts.append(f"  - class {c.name} (lines {c.line_start}-{c.line_end}), methods: {c.methods}")
-    return "\n".join(parts) if parts else "(empty)"
-
-
-def _format_source(content: str) -> str:
-    # Number lines so the model can cite precisely
-    return "\n".join(f"{i+1:4d}  {line}" for i, line in enumerate(content.splitlines()))
-
-
 def review_correctness(file: ReviewFile, file_map: FileMap, workdir: Path) -> AgentReport:
     """Run pyright + Gemini, return a structured AgentReport."""
     diagnostics = run_pyright(workdir, target_file=file.path)
@@ -74,13 +56,13 @@ def review_correctness(file: ReviewFile, file_map: FileMap, workdir: Path) -> Ag
     prompt = f"""File: {file.path}
 
 CODE MAP:
-{_format_code_map(file_map)}
+{format_code_map(file_map)}
 
 PYRIGHT DIAGNOSTICS:
 {_format_pyright(diagnostics)}
 
 SOURCE (line numbers prefixed):
-{_format_source(file.content)}
+{format_source(file.content)}
 """
 
     client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])

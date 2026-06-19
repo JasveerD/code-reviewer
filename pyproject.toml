@@ -11,6 +11,9 @@ dependencies = [
     "rich>=13.7",
     "tree-sitter>=0.21",
     "tree-sitter-python>=0.21",
+    "pyright>=1.1.410",
+    "ruff>=0.15.18",
+    "bandit>=1.9.4",
 ]
 
 [project.optional-dependencies]
