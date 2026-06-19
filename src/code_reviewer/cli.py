@@ -4,11 +4,12 @@ import os
 import sys
 from pathlib import Path
 import click
+import asyncio
 from rich.console import Console
-
 from .ingestion.loader import from_path
 from .preprocessing import build_context
-from .agents.correctness import review_correctness
+from .orchestrator import run_parallel_review
+
 
 console = Console()
 
@@ -43,21 +44,29 @@ def main(target: str | None, verify_gemini: bool) -> None:
         fm = context.map_for(f.path)
         if fm is None:
             continue
+
         console.print(f"[bold]Reviewing {f.path}...[/bold]")
-        report = review_correctness(f, fm, review_target.workdir)
-        console.print(f"[dim]{report.summary}[/dim]")
-        for finding in report.findings:
-            sev_color = {
-                "critical": "red", "high": "red",
-                "medium": "yellow", "low": "blue", "info": "dim",
-            }.get(finding.severity.value, "white")
-            console.print(
-                f"  [{sev_color}]{finding.severity.value.upper()}[/{sev_color}] "
-                f"line {finding.location.line_start}: {finding.title}"
-            )
-            console.print(f"    [dim]{finding.description}[/dim]")
-            if finding.grounding:
-                console.print(f"    [dim italic]grounded by: {', '.join(finding.grounding)}[/dim italic]")
+        reports = asyncio.run(
+            run_parallel_review(f, fm, review_target.workdir)
+        )
+
+        for report in reports:
+            console.print(f"\n[bold cyan]{report.agent}[/bold cyan]: [dim]{report.summary}[/dim]")
+            if not report.findings:
+                console.print("  [dim](no findings)[/dim]")
+                continue
+            for finding in report.findings:
+                sev_color = {
+                    "critical": "red", "high": "red",
+                    "medium": "yellow", "low": "blue", "info": "dim",
+                }.get(finding.severity.value, "white")
+                console.print(
+                    f"  [{sev_color}]{finding.severity.value.upper()}[/{sev_color}] "
+                    f"line {finding.location.line_start}: {finding.title}"
+                )
+                console.print(f"    [dim]{finding.description}[/dim]")
+                if finding.grounding:
+                    console.print(f"    [dim italic]grounded by: {', '.join(finding.grounding)}[/dim italic]")
 
 
 async def _verify_gemini() -> None:
