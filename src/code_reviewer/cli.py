@@ -4,11 +4,10 @@ import os
 import sys
 from pathlib import Path
 import click
-import asyncio
 from rich.console import Console
 from .ingestion.loader import from_path
 from .preprocessing import build_context
-from .orchestrator import run_parallel_review
+from .orchestrator import run_full_review
 
 
 console = Console()
@@ -17,7 +16,8 @@ console = Console()
 @click.command()
 @click.argument("target", type=str, required=False)
 @click.option("--verify-gemini", is_flag=True, help="Check API connectivity and exit.")
-def main(target: str | None, verify_gemini: bool) -> None:
+@click.option("--verbose", "-v", is_flag=True, help="Show per-agent raw findings.")
+def main(target: str | None, verify_gemini: bool, verbose: bool) -> None:
     """Review a file, directory, or PR."""
     if verify_gemini:
         asyncio.run(_verify_gemini())
@@ -46,28 +46,13 @@ def main(target: str | None, verify_gemini: bool) -> None:
             continue
 
         console.print(f"[bold]Reviewing {f.path}...[/bold]")
-        reports = asyncio.run(
-            run_parallel_review(f, fm, review_target.workdir)
+        agent_reports, review = asyncio.run(
+            run_full_review(f, fm, review_target.workdir)
         )
 
-        for report in reports:
-            console.print(f"\n[bold cyan]{report.agent}[/bold cyan]: [dim]{report.summary}[/dim]")
-            if not report.findings:
-                console.print("  [dim](no findings)[/dim]")
-                continue
-            for finding in report.findings:
-                sev_color = {
-                    "critical": "red", "high": "red",
-                    "medium": "yellow", "low": "blue", "info": "dim",
-                }.get(finding.severity.value, "white")
-                console.print(
-                    f"  [{sev_color}]{finding.severity.value.upper()}[/{sev_color}] "
-                    f"line {finding.location.line_start}: {finding.title}"
-                )
-                console.print(f"    [dim]{finding.description}[/dim]")
-                if finding.grounding:
-                    console.print(f"    [dim italic]grounded by: {', '.join(finding.grounding)}[/dim italic]")
-
+        if verbose:
+            _print_agent_reports(agent_reports)
+            _print_review_report(review)
 
 async def _verify_gemini() -> None:
     """Smoke test: send a one-shot prompt through google-genai."""
@@ -84,6 +69,54 @@ async def _verify_gemini() -> None:
     )
     console.print(f"[green]✓[/green] Gemini responded: {resp.text.strip()}")
 
+def _print_agent_reports(reports):
+    for report in reports:
+        console.print(f"\n[bold cyan]{report.agent}[/bold cyan]: [dim]{report.summary}[/dim]")
+        if not report.findings:
+            console.print("  [dim](no findings)[/dim]")
+            continue
+        for finding in report.findings:
+            sev_color = _sev_color(finding.severity.value)
+            console.print(
+                f"  [{sev_color}]{finding.severity.value.upper()}[/{sev_color}] "
+                f"line {finding.location.line_start}: {finding.title}"
+            )
+            console.print(f"    [dim]{finding.description}[/dim]")
+            if finding.grounding:
+                console.print(f"    [dim italic]grounded by: {', '.join(finding.grounding)}[/dim italic]")
+
+
+def _print_review_report(review):
+    console.print()
+    console.print("[bold]═══ Review Report ═══[/bold]")
+    console.print(f"[dim]{review.summary}[/dim]")
+    console.print()
+    if not review.findings:
+        console.print("  [green]No issues found.[/green]")
+        return
+    for f in review.findings:
+        sev_color = _sev_color(f.severity.value)
+        console.print(
+            f"[{sev_color}]{f.severity.value.upper()}[/{sev_color}] "
+            f"line {f.location.line_start}: [bold]{f.title}[/bold]"
+        )
+        console.print(f"  {f.description}")
+        agents = ", ".join(f.contributing_agents)
+        console.print(f"  [dim]found by: {agents}[/dim]")
+        if f.grounding:
+            console.print(f"  [dim italic]grounded by: {', '.join(f.grounding)}[/dim italic]")
+        if f.disagreement:
+            console.print(f"  [yellow]⚠ disagreement:[/yellow] {f.disagreement}")
+        if f.suggested_fix:
+            console.print(f"  [dim]fix:[/dim] {f.suggested_fix}")
+        console.print()
+
+
+def _sev_color(severity: str) -> str:
+    return {
+        "critical": "red", "high": "red",
+        "medium": "yellow", "low": "blue", "info": "dim",
+    }.get(severity, "white")
 
 if __name__ == "__main__":
     main()

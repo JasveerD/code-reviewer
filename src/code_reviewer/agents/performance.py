@@ -8,7 +8,7 @@ from ..ingestion.types import ReviewFile
 from ..context import FileMap
 from ..schemas import AgentReport, Finding
 from ..tools.ruff_tool import run_ruff_perf, RuffDiagnostic
-from ._prompts import format_code_map, format_source
+from ._prompts import format_code_map, format_source, gemini_with_retry
 
 
 _SYSTEM_INSTRUCTION = """You are a code review agent specialized in performance.
@@ -61,7 +61,8 @@ SOURCE:
 """
 
     client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-    response = client.models.generate_content(
+    response = gemini_with_retry(
+        client,
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
@@ -71,7 +72,6 @@ SOURCE:
             temperature=0.2,
         ),
     )
-
     findings: list[Finding] = response.parsed or []
     summary = (
         f"Reviewed {file.path}: {len(findings)} finding(s), "

@@ -37,3 +37,24 @@ class AgentReport(BaseModel):
     agent: str
     findings: list[Finding]
     summary: str
+
+class FinalFinding(BaseModel):
+    severity: Severity
+    title: str
+    description: str
+    location: Location
+    contributing_agents: list[str]   # which agents flagged this, deduplicated
+    grounding: list[str]             # consolidated static-tool tags
+    suggested_fix: str | None = None
+    confidence: float = Field(ge=0.0, le=1.0)
+    disagreement: str | None = Field(
+        default=None,
+        description="If contributing agents disagreed on severity, a brief explanation.",
+    )
+
+
+class ReviewReport(BaseModel):
+    findings: list[FinalFinding]
+    summary: str
+    stats: dict[str, int] = Field(default_factory=dict)
+    files_reviewed: list[str] = Field(default_factory=list)

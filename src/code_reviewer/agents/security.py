@@ -8,7 +8,7 @@ from ..ingestion.types import ReviewFile
 from ..context import FileMap
 from ..schemas import AgentReport, Finding
 from ..tools.bandit_tool import run_bandit, BanditDiagnostic
-from ._prompts import format_code_map, format_source
+from ._prompts import format_code_map, format_source, gemini_with_retry
 
 
 _SYSTEM_INSTRUCTION = """You are a code review agent specialized in security vulnerabilities.
@@ -65,7 +65,8 @@ SOURCE:
 """
 
     client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-    response = client.models.generate_content(
+    response = gemini_with_retry(
+        client,
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(

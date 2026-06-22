@@ -1,5 +1,22 @@
 """Shared prompt construction helpers used by all sub-agents."""
+import time
+from google import genai
+from google.genai import errors as genai_errors
 from ..context import FileMap
+
+def gemini_with_retry(client, *, max_attempts=6, **kwargs):
+    """Call generate_content with exponential backoff on transient errors."""
+    delay = 3.0
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return client.models.generate_content(**kwargs)
+        except Exception as e:
+            status = getattr(e, "code", None) or getattr(e, "status_code", None)
+            transient = status in (429, 500, 503, 504)
+            if not transient or attempt == max_attempts:
+                raise
+            time.sleep(delay)
+            delay *= 2
 
 
 def format_code_map(fm: FileMap) -> str:
