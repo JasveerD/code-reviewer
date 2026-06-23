@@ -8,7 +8,7 @@ from rich.console import Console
 from .ingestion.loader import from_path
 from .preprocessing import build_context
 from .orchestrator import run_full_review
-
+from .report import render_markdown
 
 console = Console()
 
@@ -17,7 +17,11 @@ console = Console()
 @click.argument("target", type=str, required=False)
 @click.option("--verify-gemini", is_flag=True, help="Check API connectivity and exit.")
 @click.option("--verbose", "-v", is_flag=True, help="Show per-agent raw findings.")
-def main(target: str | None, verify_gemini: bool, verbose: bool) -> None:
+@click.option(
+    "--output", "-o", type=click.Path(),
+    help="Write the report as markdown to this path. Terminal output still shown.",
+)
+def main(target: str | None, verify_gemini: bool, verbose: bool, output: str | None) -> None:
     """Review a file, directory, or PR."""
     if verify_gemini:
         asyncio.run(_verify_gemini())
@@ -53,6 +57,12 @@ def main(target: str | None, verify_gemini: bool, verbose: bool) -> None:
         if verbose:
             _print_agent_reports(agent_reports)
             _print_review_report(review)
+
+        if output:
+            from pathlib import Path as _Path
+            md = render_markdown(review)
+            _Path(output).write_text(md)
+            console.print(f"\n[green]✓[/green] Markdown report written to {output}")
 
 async def _verify_gemini() -> None:
     """Smoke test: send a one-shot prompt through google-genai."""
