@@ -240,11 +240,13 @@ dependencies = [
     { name = "google-adk" },
     { name = "google-genai" },
     { name = "pydantic" },
+    { name = "pygithub" },
     { name = "pyright" },
     { name = "rich" },
     { name = "ruff" },
     { name = "tree-sitter" },
     { name = "tree-sitter-python" },
+    { name = "unidiff" },
 ]
 
 [package.optional-dependencies]
@@ -265,6 +267,7 @@ requires-dist = [
     { name = "google-adk", specifier = ">=0.5.0" },
     { name = "google-genai", specifier = ">=0.3.0" },
     { name = "pydantic", specifier = ">=2.6" },
+    { name = "pygithub", specifier = ">=2.9.1" },
     { name = "pygithub", marker = "extra == 'pr'", specifier = ">=2.3" },
     { name = "pyright", specifier = ">=1.1.410" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
@@ -274,6 +277,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "tree-sitter", specifier = ">=0.21" },
     { name = "tree-sitter-python", specifier = ">=0.21" },
+    { name = "unidiff", specifier = ">=0.7.5" },
     { name = "unidiff", marker = "extra == 'pr'", specifier = ">=0.7" },
 ]
 provides-extras = ["pr", "dev"]
